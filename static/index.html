@@ -256,6 +256,19 @@ textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(108, 9
       </div>
     </div>
 
+    <!-- Notice & Info -->
+    <div class="status-card" style="margin-top:16px; background: rgba(255,165,0,0.05); border-color: rgba(255,165,0,0.2);">
+      <div style="font-size: 0.75rem; color: #ff9800; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+        <span>⚠️</span> <span data-i18n="notice.title">使用说明</span>
+      </div>
+      <p style="font-size: 0.7rem; color: var(--text-dim); line-height: 1.5;" data-i18n="notice.text">
+        本平台仅用于 MiMo TTS 效果验证。当前使用测试 API，若失效请配置个人 Key。
+      </p>
+      <a href="https://mimo.xiaomi.com/mimo-v2-tts" target="_blank" style="display:block; margin-top:10px; font-size: 0.7rem; color: var(--accent); text-decoration: none;">
+        🌐 <span data-i18n="notice.official">官方项目主页</span>
+      </a>
+    </div>
+
     <!-- Toggle Language -->
     <div class="lang-toggle">
       <div class="chip" onclick="toggleLang()" id="lang-btn">EN</div>
@@ -423,7 +436,9 @@ const i18n = {
     'label.upload': '声音素材采集', 'label.clone_text': '克隆文本', 'label.apikey': 'MiMo API Key',
     'btn.gen': '🔊 生成语音', 'btn.clone': '🧬 克隆合成', 'btn.check': '🔄 重新测试连接',
     'tip.upload': '上传本地 WAV 文件', 'label.test': '批量验证工具',
-    'tip.record': '点击录制 (建议5-15秒)'
+    'tip.record': '点击录制 (建议5-15秒)',
+    'notice.title': '使用报告', 'notice.text': '本平台仅用于效果验证。当前为测试 API，若失效或不再免费请配置个人 Key。', 'notice.official': '官方项目主页',
+    'status.verifying': '验证中...', 'status.invalid': '无效的 Key'
   },
   'en': {
     'nav.synth': 'Synthesis', 'nav.clone': 'Cloning', 'nav.history': 'History', 'nav.settings': 'Settings',
@@ -535,8 +550,15 @@ function getLocalKey() {
 }
 
 function saveApiKey() {
-  const key = document.getElementById('api-key-input').value.trim();
+  const keyInput = document.getElementById('api-key-input');
+  const key = keyInput.value.trim();
   localStorage.setItem('mimo_api_key', key);
+  
+  // Visual feedback
+  const apiText = document.getElementById('api-text');
+  apiText.textContent = currentLang === 'zh-CN' ? '正在切换密钥...' : 'Switching Key...';
+  apiText.style.color = 'var(--accent)';
+  
   checkApiStatus();
 }
 
@@ -629,17 +651,32 @@ async function generateClone() {
 }
 
 function showResult(data, text, elapsed) {
+  const size = (data.size / 1024).toFixed(1);
+  const meta = `${size} KB · ${elapsed.toFixed(2)}s`;
+  updatePlayer(data.url, text, meta);
+}
+
+function updatePlayer(url, text, meta) {
   const box = document.getElementById('result-box');
   const player = document.getElementById('audio-player');
-  const size = (data.size / 1024).toFixed(1);
+  const downloadBtn = document.getElementById('download-btn');
   
-  document.getElementById('player-title').textContent = text.slice(0, 30) + '...';
-  document.getElementById('player-meta').textContent = `${size} KB · ${elapsed.toFixed(2)}s`;
-  player.src = data.url;
-  document.getElementById('download-btn').href = data.url;
+  document.getElementById('player-title').textContent = text.slice(0, 30) + (text.length > 30 ? '...' : '');
+  document.getElementById('player-meta').textContent = meta;
+  
+  player.src = url;
+  downloadBtn.href = url;
+  
+  // Force reset and re-setup events
+  setupAudioEvents('audio-player', 'main-progress', 'main-time-cur', 'main-time-dur');
   
   box.classList.add('show');
-  player.play();
+  
+  // Reset play button icon
+  document.getElementById('main-play-btn').textContent = '⏸';
+  player.play().catch(e => {
+    document.getElementById('main-play-btn').textContent = '▶';
+  });
 }
 
 // --- History & Tab Logic ---
@@ -669,10 +706,8 @@ function renderHistory() {
 
 function playHistory(i) {
   const h = synthesisHistory[i];
-  const player = document.getElementById('audio-player');
-  player.src = h.url;
-  player.play();
-  document.getElementById('result-box').classList.add('show');
+  const meta = `${(h.size / 1024).toFixed(1)} KB | ${h.voice}`;
+  updatePlayer(h.url, h.text, meta);
 }
 
 function loadHistory() {
