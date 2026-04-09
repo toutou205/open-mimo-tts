@@ -259,14 +259,22 @@ textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(108, 9
     <!-- Notice & Info -->
     <div class="status-card" style="margin-top:16px; background: rgba(255,165,0,0.05); border-color: rgba(255,165,0,0.2);">
       <div style="font-size: 0.75rem; color: #ff9800; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-        <span>⚠️</span> <span data-i18n="notice.title">使用说明</span>
+        <span>ℹ️</span> <span data-i18n="notice.title">使用说明</span>
       </div>
-      <p style="font-size: 0.7rem; color: var(--text-dim); line-height: 1.5;" data-i18n="notice.text">
-        本平台仅用于 MiMo TTS 效果验证。当前使用测试 API，若失效请配置个人 Key。
+      <p style="font-size: 0.7rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px;" data-i18n="notice.desc">
+        本项目旨在为 Xiaomi MiMo-V2-TTS 提供便捷的效果验证与测试环境。
       </p>
-      <a href="https://mimo.xiaomi.com/mimo-v2-tts" target="_blank" style="display:block; margin-top:10px; font-size: 0.7rem; color: var(--accent); text-decoration: none;">
-        🌐 <span data-i18n="notice.official">官方项目主页</span>
-      </a>
+      <p style="font-size: 0.7rem; color: var(--text-dim); line-height: 1.5;" data-i18n="notice.text">
+        本平台仅用于效果验证。当前为测试 API，若失效或不再免费请配置个人 Key。
+      </p>
+      <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+        <a href="https://mimo.xiaomi.com/mimo-v2-tts" target="_blank" style="font-size: 0.7rem; color: var(--accent); text-decoration: none; display:flex; align-items:center; gap:6px;">
+          🌐 <span data-i18n="notice.official">Xiaomi MiMo-V2-TTS</span>
+        </a>
+        <a href="https://platform.xiaomimimo.com/#/docs/welcome" target="_blank" style="font-size: 0.7rem; color: var(--text-dim); text-decoration: none; display:flex; align-items:center; gap:6px;">
+          📄 <span data-i18n="notice.docs">接口开发文档</span>
+        </a>
+      </div>
     </div>
 
     <!-- Toggle Language -->
@@ -290,7 +298,7 @@ textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(108, 9
       <div class="card">
         <label data-i18n="label.text">合成文本 (Ctrl+Enter)</label>
         <textarea id="main-text" placeholder="输入要转换为语音的文本..." maxlength="2000">你好，欢迎使用 MiMo 语音合成验证平台！</textarea>
-        <div class="chip-grid">
+        <div class="chip-grid" id="preset-chips">
           <span class="chip" onclick="setText('你好，欢迎使用小米MiMo语音合成系统！')">👋 Hello</span>
           <span class="chip" onclick="setText('由于天气原因，原定于今天的户外活动取消。')">🌦️ Notice</span>
           <span class="chip" onclick="setText('床前明月光，疑是地上霜。')">🌙 Poem</span>
@@ -383,8 +391,11 @@ textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(108, 9
     <section id="panel-settings" class="tab-panel hidden">
       <div class="card">
         <label data-i18n="label.apikey">MiMo API Key</label>
-        <div class="config-group">
-          <input type="password" id="api-key-input" placeholder="输入您的 API Key..." onchange="saveApiKey()">
+        <div class="config-group" style="display:flex; gap:10px; margin-bottom:12px;">
+          <input type="password" id="api-key-input" placeholder="输入您的 API Key..." style="flex:1;">
+          <button class="chip" onclick="saveApiKey()" style="padding:0 16px; background:var(--primary); color:white; border:none; height:46px; border-radius:12px; font-weight:700;">
+            <span data-i18n="btn.save_verify">校验并保存</span>
+          </button>
         </div>
         <p style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.6;">
           • 输入的 Key 将仅本地保存到浏览器 `localStorage`。<br>
@@ -456,12 +467,22 @@ function toggleLang() {
   currentLang = currentLang === 'zh-CN' ? 'en' : 'zh-CN';
   document.getElementById('lang-btn').textContent = currentLang === 'zh-CN' ? 'EN' : 'ZH';
   updateI18n();
+  renderPresets();
 }
 function updateI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     el.textContent = i18n[currentLang][key] || key;
   });
+}
+
+function renderPresets() {
+  const container = document.getElementById('preset-chips');
+  if (!container) return;
+  const p = i18n[currentLang]['presets'] || [];
+  container.innerHTML = p.map(item => `
+    <span class="chip" onclick="setText('${item.text}')">${item.tag}</span>
+  `).join('');
 }
 
 // --- State ---
@@ -479,6 +500,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await fetchVoices();
   checkApiStatus();
   updateI18n();
+  renderPresets();
   loadHistory();
 });
 
