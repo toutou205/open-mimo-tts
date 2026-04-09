@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎙️ Open-MiMo-TTS | 语音合成验证平台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+SC:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #030305;
+  --surface: #0c0c12;
+  --surface-hover: #14141f;
+  --border: rgba(255,255,255,0.08);
+  --border-active: rgba(108, 92, 231, 0.5);
+  --primary: #6c5ce7;
+  --primary-glow: rgba(108, 92, 231, 0.4);
+  --accent: #00cec9;
+  --text: #f0f0f5;
+  --text-dim: #9494a5;
+  --danger: #ff5252;
+  --success: #00e676;
+  --radius: 16px;
+  --font-main: 'Outfit', 'Noto Sans SC', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-main);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  overflow-x: hidden;
+}
+
+/* Background gradient blobs */
+.blob {
+  position: fixed; width: 40vw; height: 40vw; border-radius: 50%;
+  filter: blur(80px); z-index: -1; opacity: 0.15; pointer-events: none;
+}
+.blob-1 { top: -10%; left: -10%; background: var(--primary); }
+.blob-2 { bottom: -10%; right: -10%; background: var(--accent); }
+
+.app-wrapper {
+  width: 100%; max-width: 900px;
+  padding: 40px 20px;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 32px;
+}
+
+@media (max-width: 768px) {
+  .app-wrapper { grid-template-columns: 1fr; }
+  .sidebar { position: fixed; bottom: 0; left: 0; width: 100%; z-index: 100; padding: 12px; background: rgba(12,12,18,0.95); border-top: 1px solid var(--border); backdrop-filter: blur(20px); }
+  .nav { flex-direction: row !important; gap: 8px !important; }
+  .nav-item { flex: 1; padding: 10px !important; justify-content: center !important; }
+  .main-content { padding-bottom: 80px; }
+}
+
+/* Sidebar Nav */
+.sidebar { display: flex; flex-direction: column; gap: 24px; }
+.logo { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.logo span { background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.nav { display: flex; flex-direction: column; gap: 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  border-radius: 12px; cursor: pointer; transition: all 0.3s;
+  color: var(--text-dim); text-decoration: none; font-weight: 500;
+  border: 1px solid transparent;
+}
+.nav-item:hover { color: var(--text); background: var(--surface-hover); }
+.nav-item.active {
+  color: #fff; background: rgba(108, 92, 231, 0.15);
+  border-color: var(--border-active);
+  box-shadow: 0 0 20px rgba(108, 92, 231, 0.1);
+}
+
+.status-card {
+  margin-top: auto; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+}
+.status-line { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-dim); margin-bottom: 8px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.dot-online { background: var(--success); box-shadow: 0 0 10px var(--success); }
+.dot-offline { background: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+/* Main Content */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  backdrop-filter: blur(10px);
+}
+label { display: block; font-size: 0.7rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+
+/* Grid Layouts */
+.voice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.voice-card {
+  padding: 16px; background: var(--surface-hover); border: 1px solid var(--border); border-radius: 12px;
+  cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
+}
+.voice-card:hover { border-color: var(--text-dim); transform: translateY(-2px); }
+.voice-card.active { border-color: var(--primary); background: rgba(108,92,231,0.05); }
+.voice-card.active::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary); }
+.voice-card .emoji { font-size: 1.5rem; margin-bottom: 8px; }
+.voice-card .name { font-weight: 600; font-size: 0.9rem; }
+.voice-card .desc { font-size: 0.75rem; color: var(--text-dim); margin-top: 4px; }
+
+/* Input Area */
+textarea {
+  width: 100%; min-height: 140px; background: #000; border: 1px solid var(--border);
+  border-radius: 12px; padding: 16px; color: var(--text); font-size: 1rem; line-height: 1.6;
+  resize: vertical; outline: none; transition: all 0.3s; font-family: inherit;
+}
+textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.1); }
+
+/* Controls */
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.input-group input, .input-group select {
+  width: 100%; padding: 12px; background: #000; border: 1px solid var(--border); border-radius: 8px; color: var(--text); outline: none;
+}
+
+/* Chips/Buttons */
+.chip-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip {
+  padding: 6px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  border-radius: 100px; font-size: 0.75rem; color: var(--text-dim); cursor: pointer; transition: all 0.2s;
+}
+.chip:hover { color: var(--text); border-color: var(--text-dim); }
+.chip.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.generate-btn {
+  width: 100%; padding: 16px; background: var(--primary); border: none; border-radius: 12px;
+  color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.3s;
+  display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 24px;
+}
+.generate-btn:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 10px 30px var(--primary-glow); }
+.generate-btn:active { transform: translateY(0); }
+.generate-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Waves animation for loading */
+.loader { display: flex; gap: 4px; height: 16px; align-items: flex-end; display: none; }
+.generate-btn.loading .loader { display: flex; }
+.generate-btn.loading .btn-text { display: none; }
+.bar { width: 3px; background: #fff; animation: wave 1s ease-in-out infinite; }
+.bar:nth-child(2) { animation-delay: 0.1s; } .bar:nth-child(3) { animation-delay: 0.2s; }
+@keyframes wave { 0%, 100% { height: 4px; } 50% { height: 16px; } }
+
+/* Result Section Custom Player */
+.result-player {
+  background: rgba(20, 20, 31, 0.9); border-radius: 20px; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border); margin-top: 24px;
+  opacity: 0; transform: translateY(10px); transition: all 0.5s; pointer-events: none;
+  backdrop-filter: blur(20px); box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+}
+.result-player.show { opacity: 1; transform: translateY(0); pointer-events: all; }
+
+.player-controls { display: flex; align-items: center; gap: 16px; }
+.play-btn {
+  background: var(--primary); color: white; border: none; width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.3s;
+}
+.play-btn:hover { transform: scale(1.1); box-shadow: 0 0 15px var(--primary-glow); }
+
+.progress-container { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.progress-bar {
+  width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px;
+  cursor: pointer; -webkit-appearance: none; outline: none;
+}
+.progress-bar::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; background: var(--accent); border-radius: 50%;
+  box-shadow: 0 0 10px var(--accent); cursor: pointer; border: 2px solid #fff;
+}
+.time-info { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-dim); font-family: monospace; }
+
+/* Settings/Config */
+.config-group { margin-bottom: 20px; }
+.config-group input { width: 100%; padding: 14px; background: #000; border: 1px solid var(--border); border-radius: 12px; color: var(--accent); font-family: monospace; font-size: 0.9rem; }
+
+/* History */
+.history-item {
+  display: flex; justify-content: space-between; align-items: center; padding: 14px;
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px;
+  transition: all 0.3s; cursor: pointer;
+}
+.history-item:hover { background: rgba(255,255,255,0.05); border-color: var(--text-dim); }
+.history-text { font-size: 0.85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
+.history-meta { font-size: 0.7rem; color: var(--text-dim); font-family: monospace; }
+
+/* I18n Toggle */
+.lang-toggle { position: fixed; top: 20px; right: 20px; z-index: 1000; }
+
+/* Recording UI */
+.record-btn {
+  background: var(--danger); border: none; width: 50px; height: 50px; border-radius: 50%;
+  color: white; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; transition: all 0.3s; position: relative;
+}
+.record-btn::after {
+  content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%;
+  border: 2px solid var(--danger); animation: pulse 1.5s infinite; opacity: 0;
+}
+.record-btn.recording::after { opacity: 1; }
+@keyframes pulse { 0% { transform: scale(1); opacity: 0.5; } 100% { transform: scale(1.8); opacity: 0; } }
+.record-btn.recording { border-radius: 8px; transform: scale(0.9); }
+
+.visualizer-mini {
+  height: 30px; display: flex; align-items: center; gap: 2px;
+}
+.v-bar { width: 3px; height: 4px; background: var(--primary); border-radius: 10px; transition: height 0.1s; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<div class="app-wrapper">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <span>🎙️ Open-MiMo-TTS</span>
+    </div>
+    <nav class="nav">
+      <a class="nav-item active" onclick="showTab('synth')" id="nav-synth">
+        <i>🎯</i> <span data-i18n="nav.synth">音色合成</span>
+      </a>
+      <a class="nav-item" onclick="showTab('clone')" id="nav-clone">
+        <i>🧬</i> <span data-i18n="nav.clone">声音克隆</span>
+      </a>
+      <a class="nav-item" onclick="showTab('history')" id="nav-history">
+        <i>📜</i> <span data-i18n="nav.history">历史记录</span>
+      </a>
+      <a class="nav-item" onclick="showTab('settings')" id="nav-settings">
+        <i>⚙️</i> <span data-i18n="nav.settings">环境配置</span>
+      </a>
+    </nav>
+
+    <div class="status-card">
+      <div class="status-line">
+        <span data-i18n="status.api">API 状态</span>
+        <span><span class="status-dot" id="api-dot"></span><span id="api-text">检测中...</span></span>
+      </div>
+      <div class="status-line">
+        <span data-i18n="status.latency">响应延迟</span>
+        <span id="api-latency">-- ms</span>
+      </div>
+      <div class="status-line">
+        <span data-i18n="status.model">当前模型</span>
+        <span id="active-model">mimo-v2</span>
+      </div>
+    </div>
+
+    <!-- Toggle Language -->
+    <div class="lang-toggle">
+      <div class="chip" onclick="toggleLang()" id="lang-btn">EN</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+    
+    <!-- Synth Panel -->
+    <section id="panel-synth" class="tab-panel">
+      <div class="card">
+        <label data-i18n="label.voice">选择预设音色</label>
+        <div class="voice-grid" id="voice-grid">
+          <!-- Dynamically filled -->
+        </div>
+      </div>
+
+      <div class="card">
+        <label data-i18n="label.text">合成文本 (Ctrl+Enter)</label>
+        <textarea id="main-text" placeholder="输入要转换为语音的文本..." maxlength="2000">你好，欢迎使用 MiMo 语音合成验证平台！</textarea>
+        <div class="chip-grid">
+          <span class="chip" onclick="setText('你好，欢迎使用小米MiMo语音合成系统！')">👋 Hello</span>
+          <span class="chip" onclick="setText('由于天气原因，原定于今天的户外活动取消。')">🌦️ Notice</span>
+          <span class="chip" onclick="setText('床前明月光，疑是地上霜。')">🌙 Poem</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <label data-i18n="label.style">风格控制</label>
+        <div class="chip-grid" id="style-grid">
+          <span class="chip active" data-style="">默认</span>
+          <span class="chip" data-style="开心">😊 开心</span>
+          <span class="chip" data-style="悲伤">😢 悲伤</span>
+          <span class="chip" data-style="生气">😤 生气</span>
+          <span class="chip" data-style="悄悄话">🤫 悄悄话</span>
+          <span class="chip" data-style="东北话">🧊 东北话</span>
+          <span class="chip" data-style="像个大将军">⚔️ 大将军</span>
+          <span class="chip" data-style="唱歌">🎤 唱歌</span>
+        </div>
+        <div class="input-group" style="margin-top:12px;">
+          <input type="text" id="custom-style" placeholder="自定义风格描述 (可选)..." />
+        </div>
+      </div>
+
+      <button class="generate-btn" id="gen-btn" onclick="generatePreset()">
+        <div class="loader"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <span class="btn-text" data-i18n="btn.gen">🔊 生成语音</span>
+      </button>
+    </section>
+
+    <!-- Clone Panel -->
+    <section id="panel-clone" class="tab-panel hidden">
+      <div class="card">
+        <label data-i18n="label.upload">声音素材采集</label>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+          <!-- Recording Part -->
+          <div style="padding: 24px; border: 1px solid var(--border); border-radius: 12px; display:flex; flex-direction:column; align-items:center; gap:12px; background: rgba(255,255,255,0.02);">
+            <div class="record-btn" id="record-btn" onclick="toggleRecording()">🎤</div>
+            <div id="record-timer" style="font-family: monospace; font-size: 1.2rem; font-weight:700;">00:00</div>
+            <div id="record-status" style="font-size:0.75rem; color:var(--text-dim);" data-i18n="tip.record">点击开始录音 (5-15秒)</div>
+          </div>
+
+          <!-- Upload Part -->
+          <div style="padding: 24px; border: 2px dashed var(--border); border-radius: 12px; text-align: center; cursor: pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;" id="drop-zone" onclick="document.getElementById('file-input').click()">
+            <span style="font-size: 1.5rem">📂</span>
+            <p style="font-size: 0.75rem; color:var(--text-dim);" data-i18n="tip.upload">上传本地 WAV 文件</p>
+            <input type="file" id="file-input" class="hidden" accept=".wav" onchange="handleFileSelect(event)">
+          </div>
+        </div>
+
+        <div id="file-info" class="hidden" style="margin-top:16px; padding: 16px; background: rgba(0,230,118,0.05); border: 1px solid var(--success); border-radius: 12px; color: var(--success); font-weight: 600; font-size: 0.85rem;">
+           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+             <span id="file-info-text">✅ 素材已就绪</span>
+             <span style="font-size:0.7rem; opacity:0.7">16-bit / 24kHz</span>
+           </div>
+           
+           <div class="player-controls">
+             <button class="play-btn" onclick="toggleAudio('preview-audio', this)">▶</button>
+             <div class="progress-container">
+               <input type="range" class="progress-bar" id="preview-progress" value="0" step="0.1" oninput="seekAudio('preview-audio', this)">
+               <div class="time-info">
+                 <span id="preview-time-cur">00:00</span>
+                 <span id="preview-time-dur">00:00</span>
+               </div>
+             </div>
+             <audio id="preview-audio" class="hidden"></audio>
+           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label data-i18n="label.clone_text">克隆文本</label>
+        <textarea id="clone-text" placeholder="输入要使用克隆声音合成的文本...">大家好，我是用克隆声音说话的。</textarea>
+      </div>
+
+      <button class="generate-btn" id="clone-btn" onclick="generateClone()">
+        <div class="loader"><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <span class="btn-text" data-i18n="btn.clone">🧬 克隆声音合成</span>
+      </button>
+    </section>
+
+    <!-- History Panel -->
+    <section id="panel-history" class="tab-panel hidden">
+      <div id="history-list">
+        <!-- History items will be added here -->
+      </div>
+    </section>
+
+    <!-- Settings Panel -->
+    <section id="panel-settings" class="tab-panel hidden">
+      <div class="card">
+        <label data-i18n="label.apikey">MiMo API Key</label>
+        <div class="config-group">
+          <input type="password" id="api-key-input" placeholder="输入您的 API Key..." onchange="saveApiKey()">
+        </div>
+        <p style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.6;">
+          • 输入的 Key 将仅本地保存到浏览器 `localStorage`。<br>
+          • 您也可以在服务器根目录创建 `.env` 文件配置 `MIMO_API_KEY`。
+        </p>
+      </div>
+
+      <div class="card">
+        <label data-i18n="label.test">批量验证工具</label>
+        <button class="generate-btn" style="background:#222; margin-top:0;" onclick="checkApiStatus()">
+          <span data-i18n="btn.check">🔄 重新连接测试</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Global Result Box -->
+    <div class="result-player" id="result-box">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; flex-direction:column; gap:4px">
+          <span id="player-title" style="font-weight:700; font-size:0.85rem">Ready</span>
+          <span id="player-meta" style="font-size:0.7rem; color:var(--text-dim)">-- KB</span>
+        </div>
+        <a id="download-btn" href="#" download="mimo_tts.wav" class="chip">⬇️ 下载</a>
+      </div>
+
+      <div class="player-controls">
+        <button class="play-btn" id="main-play-btn" onclick="toggleAudio('audio-player', this)">▶</button>
+        <div class="progress-container">
+          <input type="range" class="progress-bar" id="main-progress" value="0" step="0.1" oninput="seekAudio('audio-player', this)">
+          <div class="time-info">
+            <span id="main-time-cur">00:00</span>
+            <span id="main-time-dur">00:00</span>
+          </div>
+        </div>
+      </div>
+      <audio id="audio-player" class="hidden"></audio>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// --- I18n ---
+const i18n = {
+  'zh-CN': {
+    'nav.synth': '音色合成', 'nav.clone': '声音克隆', 'nav.history': '历史记录', 'nav.settings': '环境配置',
+    'status.api': 'API 状态', 'status.latency': '响应延迟', 'status.model': '当前模型',
+    'label.voice': '选择预设音色', 'label.text': '合成文本 (Ctrl+Enter)', 'label.style': '风格控制',
+    'label.upload': '声音素材采集', 'label.clone_text': '克隆文本', 'label.apikey': 'MiMo API Key',
+    'btn.gen': '🔊 生成语音', 'btn.clone': '🧬 克隆合成', 'btn.check': '🔄 重新测试连接',
+    'tip.upload': '上传本地 WAV 文件', 'label.test': '批量验证工具',
+    'tip.record': '点击录制 (建议5-15秒)'
+  },
+  'en': {
+    'nav.synth': 'Synthesis', 'nav.clone': 'Cloning', 'nav.history': 'History', 'nav.settings': 'Settings',
+    'status.api': 'API Status', 'status.latency': 'Latency', 'status.model': 'Active Model',
+    'label.voice': 'Preset Voices', 'label.text': 'Input Text (Ctrl+Enter)', 'label.style': 'Style Control',
+    'label.upload': 'Source Audio Capture', 'label.clone_text': 'Clone Text', 'label.apikey': 'MiMo API Key',
+    'btn.gen': '🔊 Generate', 'btn.clone': '🧬 Clone Voice', 'btn.check': '🔄 Re-test Connection',
+    'tip.upload': 'Upload WAV file', 'label.test': 'Tools',
+    'tip.record': 'Click to record (5-15s suggested)'
+  }
+};
+
+let currentLang = 'zh-CN';
+function toggleLang() {
+  currentLang = currentLang === 'zh-CN' ? 'en' : 'zh-CN';
+  document.getElementById('lang-btn').textContent = currentLang === 'zh-CN' ? 'EN' : 'ZH';
+  updateI18n();
+}
+function updateI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    el.textContent = i18n[currentLang][key] || key;
+  });
+}
+
+// --- State ---
+let voices = [];
+let activeVoiceId = 'mimo_default';
+let activeStyle = '';
+let uploadedSampleId = null;
+let synthesisHistory = [];
+
+// --- Init ---
+document.addEventListener('DOMContentLoaded', async () => {
+  const savedKey = localStorage.getItem('mimo_api_key');
+  if (savedKey) document.getElementById('api-key-input').value = savedKey;
+
+  await fetchVoices();
+  checkApiStatus();
+  updateI18n();
+  loadHistory();
+});
+
+async function fetchVoices() {
+  try {
+    const res = await fetch('/api/voices');
+    const data = await res.json();
+    voices = data.voices;
+    document.getElementById('active-model').textContent = data.model;
+    renderVoices();
+  } catch (e) {
+    console.error('Fetch voices failed', e);
+  }
+}
+
+function renderVoices() {
+  const grid = document.getElementById('voice-grid');
+  grid.innerHTML = voices.map(v => `
+    <div class="voice-card ${v.id === activeVoiceId ? 'active' : ''}" onclick="selectVoice('${v.id}')">
+      <div class="emoji">${v.emoji || '🎙️'}</div>
+      <div class="name">${v.name}</div>
+      <div class="desc">${v.desc}</div>
+    </div>
+  `).join('');
+}
+
+function selectVoice(id) {
+  activeVoiceId = id;
+  renderVoices();
+}
+
+// Style Chips
+document.querySelectorAll('#style-grid .chip').forEach(chip => {
+  chip.onclick = () => {
+    document.querySelectorAll('#style-grid .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    activeStyle = chip.dataset.style;
+    document.getElementById('custom-style').value = '';
+  };
+});
+
+// --- Actions ---
+async function checkApiStatus() {
+  const dot = document.getElementById('api-dot');
+  const text = document.getElementById('api-text');
+  const start = Date.now();
+  
+  try {
+    const res = await fetch('/api/status', { headers: { 'x-mimo-api-key': getLocalKey() } });
+    const data = await res.json();
+    const elapsed = Date.now() - start;
+    
+    if (data.configured) {
+      dot.className = 'status-dot dot-online';
+      text.textContent = 'Ready';
+      document.getElementById('api-latency').textContent = `${elapsed} ms`;
+    } else {
+      dot.className = 'status-dot dot-offline';
+      text.textContent = 'Unconfigured';
+    }
+  } catch (e) {
+    dot.className = 'status-dot dot-offline';
+    text.textContent = 'Disconnected';
+  }
+}
+
+function getLocalKey() {
+  return localStorage.getItem('mimo_api_key') || '';
+}
+
+function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  localStorage.setItem('mimo_api_key', key);
+  checkApiStatus();
+}
+
+async function generatePreset() {
+  const text = document.getElementById('main-text').value.trim();
+  if (!text) return alert('请输入文本');
+
+  const btn = document.getElementById('gen-btn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  const style = document.getElementById('custom-style').value.trim() || activeStyle;
+  const start = Date.now();
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-mimo-api-key': getLocalKey() },
+      body: JSON.stringify({ text, style, voice: activeVoiceId })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const elapsed = (Date.now() - start) / 1000;
+    showResult(data, text, elapsed);
+    addToHistory(text, activeVoiceId, data);
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+async function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const status = document.getElementById('upload-status');
+  status.textContent = 'Uploading...';
+  
+  const formData = new FormData();
+  formData.append('voice', file);
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) {
+      uploadedSampleId = data.id;
+      document.getElementById('file-info').textContent = `✅ ${file.name} Uploaded`;
+      document.getElementById('file-info').classList.remove('hidden');
+      status.textContent = 'Ready to clone';
+    } else {
+      throw new Error(data.error);
+    }
+  } catch (e) {
+    alert('Upload failed: ' + e.message);
+    status.textContent = 'Upload failed';
+  }
+}
+
+async function generateClone() {
+  const text = document.getElementById('clone-text').value.trim();
+  if (!text || !uploadedSampleId) return alert('请上传样本并输入文本');
+
+  const btn = document.getElementById('clone-btn');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  const start = Date.now();
+
+  try {
+    const res = await fetch('/api/clone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-mimo-api-key': getLocalKey() },
+      body: JSON.stringify({ text, voiceSampleId: uploadedSampleId })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const elapsed = (Date.now() - start) / 1000;
+    showResult(data, text, elapsed);
+    addToHistory(text, '🧬 Clone', data);
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+}
+
+function showResult(data, text, elapsed) {
+  const box = document.getElementById('result-box');
+  const player = document.getElementById('audio-player');
+  const size = (data.size / 1024).toFixed(1);
+  
+  document.getElementById('player-title').textContent = text.slice(0, 30) + '...';
+  document.getElementById('player-meta').textContent = `${size} KB · ${elapsed.toFixed(2)}s`;
+  player.src = data.url;
+  document.getElementById('download-btn').href = data.url;
+  
+  box.classList.add('show');
+  player.play();
+}
+
+// --- History & Tab Logic ---
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.remove('hidden');
+  document.getElementById(`nav-${name}`).classList.add('active');
+}
+
+function addToHistory(text, voice, data) {
+  const item = { text, voice, url: data.url, size: data.size, time: new Date().toLocaleTimeString() };
+  synthesisHistory.unshift(item);
+  saveHistory();
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  list.innerHTML = synthesisHistory.map((h, i) => `
+    <div class="history-item" onclick="playHistory(${i})">
+      <div class="history-text">${h.text}</div>
+      <div class="history-meta">${h.voice} | ${h.time}</div>
+    </div>
+  `).join('');
+}
+
+function playHistory(i) {
+  const h = synthesisHistory[i];
+  const player = document.getElementById('audio-player');
+  player.src = h.url;
+  player.play();
+  document.getElementById('result-box').classList.add('show');
+}
+
+function loadHistory() {
+  const h = localStorage.getItem('mimo_history');
+  if (h) { synthesisHistory = JSON.parse(h); renderHistory(); }
+}
+function saveHistory() {
+  localStorage.setItem('mimo_history', JSON.stringify(synthesisHistory.slice(0, 50)));
+}
+
+function setText(t) { document.getElementById('main-text').value = t; }
+
+// --- Recording Logic ---
+let isRecording = false;
+let audioCtx, recorder, stream;
+let recordingChunks = [];
+let timerInterval;
+let startTime;
+
+async function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    const source = audioCtx.createMediaStreamSource(stream);
+    recorder = audioCtx.createScriptProcessor(4096, 1, 1);
+    
+    recordingChunks = [];
+    recorder.onaudioprocess = (e) => {
+      recordingChunks.push(...e.inputBuffer.getChannelData(0));
+    };
+
+    source.connect(recorder);
+    recorder.connect(audioCtx.destination);
+
+    isRecording = true;
+    document.getElementById('record-btn').classList.add('recording');
+    startTime = Date.now();
+    updateTimer();
+    timerInterval = setInterval(updateTimer, 100);
+  } catch (err) {
+    alert('无法访问麦克风: ' + err.message);
+  }
+}
+
+function updateTimer() {
+  const elapsed = (Date.now() - startTime) / 1000;
+  const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  const s = Math.floor(elapsed % 60).toString().padStart(2, '0');
+  document.getElementById('record-timer').textContent = `${m}:${s}`;
+  if (elapsed >= 30) stopRecording();
+}
+
+async function stopRecording() {
+  isRecording = false;
+  clearInterval(timerInterval);
+  document.getElementById('record-btn').classList.remove('recording');
+  
+  if (recorder) {
+    recorder.disconnect();
+    stream.getTracks().forEach(t => t.stop());
+    
+    // Encode to WAV
+    const wavBlob = encodeWAV(recordingChunks, 24000);
+    const url = URL.createObjectURL(wavBlob);
+    
+    // Preview
+    const preview = document.getElementById('preview-audio');
+    preview.src = url;
+    setupAudioEvents('preview-audio', 'preview-progress', 'preview-time-cur', 'preview-time-dur');
+    
+    // Auto upload
+    uploadRecordedFile(wavBlob);
+  }
+}
+
+function encodeWAV(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+  };
+  writeString(0, 'RIFF');
+  view.setUint32(4, 32 + samples.length * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    let s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+async function uploadRecordedFile(blob) {
+  const fileInfo = document.getElementById('file-info');
+  const infoText = document.getElementById('file-info-text');
+  infoText.textContent = 'Processing...';
+  fileInfo.classList.remove('hidden');
+
+  const formData = new FormData();
+  formData.append('voice', blob, 'recorded.wav');
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) {
+      uploadedSampleId = data.id;
+      infoText.textContent = `✅ Recorded & Ready`;
+    } else throw new Error(data.error);
+  } catch (e) {
+    infoText.textContent = `❌ Upload failed`;
+  }
+}
+
+
+function showResult(data, text, elapsed) {
+  const box = document.getElementById('result-box');
+  const player = document.getElementById('audio-player');
+  const size = (data.size / 1024).toFixed(1);
+  
+  document.getElementById('player-title').textContent = text.slice(0, 30) + '...';
+  document.getElementById('player-meta').textContent = `${size} KB · ${elapsed.toFixed(2)}s`;
+  player.src = data.url;
+  document.getElementById('download-btn').href = data.url;
+  
+  setupAudioEvents('audio-player', 'main-progress', 'main-time-cur', 'main-time-dur');
+  
+  box.classList.add('show');
+  player.play();
+}
+
+// --- Custom Player Controls ---
+function toggleAudio(id, btn) {
+  const audio = document.getElementById(id);
+  if (audio.paused) {
+    audio.play();
+    btn.textContent = '⏸';
+  } else {
+    audio.pause();
+    btn.textContent = '▶';
+  }
+}
+
+function seekAudio(id, slider) {
+  const audio = document.getElementById(id);
+  const time = (slider.value / 100) * audio.duration;
+  audio.currentTime = time;
+}
+
+function setupAudioEvents(audioId, progressId, curTimeId, durTimeId) {
+  const audio = document.getElementById(audioId);
+  const progress = document.getElementById(progressId);
+  const curText = document.getElementById(curTimeId);
+  const durText = document.getElementById(durTimeId);
+
+  audio.onloadedmetadata = () => {
+    durText.textContent = formatTime(audio.duration);
+  };
+
+  audio.ontimeupdate = () => {
+    const val = (audio.currentTime / audio.duration) * 100;
+    progress.value = val || 0;
+    curText.textContent = formatTime(audio.currentTime);
+  };
+
+  audio.onended = () => {
+    const btn = audio.parentElement.querySelector('.play-btn');
+    if (btn) btn.textContent = '▶';
+    progress.value = 0;
+  };
+}
+
+function formatTime(sec) {
+  if (isNaN(sec)) return '00:00';
+  const m = Math.floor(sec / 60).toString().padStart(2, '0');
+  const s = Math.floor(sec % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+// Utils
+document.getElementById('main-text').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generatePreset();
+});
+</script>
+</body>
+</html>
