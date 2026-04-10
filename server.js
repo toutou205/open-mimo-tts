@@ -150,6 +150,32 @@ async function callTTS(text, style, voice, voiceSamplePath, overrideApiKey) {
   });
 }
 
+/**
+ * Verifies the validity of an API Key by calling the upstream models endpoint.
+ * @param {string} key
+ * @returns {Promise<boolean>}
+ */
+async function verifyApiKey(key) {
+  if (!key) return false;
+  return new Promise((resolve) => {
+    const url = new URL(API_ENDPOINT);
+    const options = {
+      hostname: url.hostname, port: 443,
+      path: '/v1/models',
+      method: 'GET',
+      headers: { 'api-key': key },
+      timeout: 5000
+    };
+    const proto = require('https');
+    const req = proto.request(options, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.end();
+  });
+}
+
 // ── HTTP helpers ─────────────────────────────────────────────────────────
 function serveStatic(req, res) {
   let fp = req.url === '/' ? '/index.html' : req.url.split('?')[0];
@@ -284,10 +310,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.url === '/api/status' && req.method === 'GET') {
       const key = getApiKey(req.headers);
+      const isValid = await verifyApiKey(key);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ 
         online: true, 
-        configured: !!key, 
+        configured: !!key,
+        valid: isValid,
         keyPreview: key ? `${key.slice(0, 4)}...${key.slice(-4)}` : null 
       }));
       return;
